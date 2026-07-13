@@ -1,78 +1,80 @@
 import chromadb
-from chromadb.config import Settings
-from utils.embeddings import get_embeddings 
+from utils.embeddings import get_embeddings
 
-client = chromadb.PersistentClient(path = "database")
+# Create ChromaDB client
+client = chromadb.PersistentClient(path="database")
 
-collection = client.get_or_create_collection(name="study_notes")
 
-def save_to_vector_store(chunks, metadata_list = None):
-    #ids for chunks eg - 0,1,2,3
-    ids = [str(i) for i in range(len(chunks))]  
-    
-    #generate embeddings for the chunks 
-    print("Generating embeddings... ")
-    embeddings = get_embeddings(chunks) 
-    
-    
-    #add to chromaDB
+def get_collection(session_id):
+    """
+    Returns a unique collection for each user session.
+    """
+    return client.get_or_create_collection(
+        name=f"study_notes_{session_id}"
+    )
+
+
+def save_to_vector_store(chunks, session_id, metadata_list=None):
+    """
+    Saves document chunks into the session-specific Chroma collection.
+    """
+
+    collection = get_collection(session_id)
+
+    # Clear previous uploads for THIS SESSION ONLY
+    existing = collection.get()
+
+    if existing["ids"]:
+        collection.delete(ids=existing["ids"])
+
+    # Generate IDs
+    ids = [str(i) for i in range(len(chunks))]
+
+    print("Generating embeddings...")
+
+    embeddings = get_embeddings(chunks)
+
     collection.add(
-        documents = chunks,
-        embeddings = embeddings,
-        ids = ids,
-        metadatas = metadata_list if metadata_list else [None]*len(chunks)  
+        documents=chunks,
+        embeddings=embeddings,
+        ids=ids,
+        metadatas=metadata_list if metadata_list else [None] * len(chunks),
     )
-    
+
     print(f"Successfully saved {len(chunks)} chunks to the database.")
-    
-def query_vector_store(query_text, n_results=3):
+
+
+def query_vector_store(query_text, session_id, n_results=3):
     """
-    Searches the database for text similar to the query.
-    
-    Args:
-        query_text (str): The question or search term.
-        n_results (int): How many results to return.
-        
-    Returns:
-        list: The matching text chunks.
+    Searches ONLY the current user's collection.
     """
-    #convert questions into vectors 
-    query_embeddings = get_embeddings(query_text)
-    
-    
-    #search ChromaDB
+
+    collection = get_collection(session_id)
+
+    query_embedding = get_embeddings(query_text)
+
     results = collection.query(
-        query_embeddings = query_embeddings,
-        n_results = n_results
+        query_embeddings=query_embedding,
+        n_results=n_results,
     )
-    
-    #returning the documents 
-    return results['documents'][0]
 
-#TEST BLOCK
+    if len(results["documents"]) == 0:
+        return []
 
+    return results["documents"][0]
+
+
+# TEST BLOCK
 if __name__ == "__main__":
-    print("Debug: Starting vector store test...")
-    
-    # 1. Create some dummy data
+
+    session = "test_session"
+
     sample_notes = [
         "Photosynthesis is the process by which plants use sunlight to create food.",
         "The mitochondria is the powerhouse of the cell.",
-        "Python is a high-level programming language popular for data science.",
-        "JavaScript is commonly used for web development in the browser.",
-        "Gravity is the force that attracts a body toward the center of the earth."
+        "Python is a high-level programming language.",
     ]
-    
-    #save to DB
-    
-    try:
-        save_to_vector_store(sample_notes)   
-    except Exception as e:
-        print(f"Error (might be duplicates) : {e}")
-        
-    #search the DB
-    print("\n --Searching for 'energy'--")
-    results = query_vector_store("energy")
-    for i, res in enumerate(results):
-        print(f"results {i+1} :  {res}")    
-        
+
+    save_to_vector_store(sample_notes, session)
+
+    print(query_vector_store("energy", session))
