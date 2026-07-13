@@ -1,5 +1,6 @@
 import chromadb
 from utils.embeddings import get_embeddings
+from utils.session_manager import register_session
 
 # Create ChromaDB client
 client = chromadb.PersistentClient(path="database")
@@ -20,6 +21,9 @@ def save_to_vector_store(chunks, session_id, metadata_list=None):
     """
 
     collection = get_collection(session_id)
+    
+    register_session(collection.name)
+    
 
     # Clear previous uploads for THIS SESSION ONLY
     existing = collection.get()
