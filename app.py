@@ -22,6 +22,10 @@ with st.sidebar:
         # Create a button to trigger processing
         if st.button("Process PDF"):
             with st.spinner("Reading, Chunking, and Indexing..."):
+
+                # Create the directory if it doesn't exist
+                os.makedirs("data/pdfs", exist_ok=True)
+
                 # 1. Save file
                 with open(file_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
