@@ -1,4 +1,5 @@
 import os
+import streamlit as st
 from dotenv import load_dotenv
 from groq import Groq
 from utils.vector_store import query_vector_store
@@ -8,12 +9,17 @@ load_dotenv()
 
 # 2. Configure Groq
 api_key = os.getenv("GROQ_API_KEY")
+
+if not api_key:
+    # Check Streamlit Cloud Secrets
+    api_key = st.secrets.get("GROQ_API_KEY")
+
 if not api_key:
     # Fallback: Check if they put it in GOOGLE_API_KEY by mistake
     api_key = os.getenv("GOOGLE_API_KEY")
     
 if not api_key:
-    raise ValueError("GROQ_API_KEY not found in .env file. Please add it.")
+    raise ValueError("GROQ_API_KEY not found. Please add it to your .env file or Streamlit Secrets.")
 
 client = Groq(api_key=api_key)
 
@@ -36,7 +42,6 @@ def generate_answer(question, context):
     """
     
     # 3. Construct the Prompt
-    # Llama 3 likes clear instructions
     prompt = f"""
     You are a helpful study assistant. 
     Answer the question based ONLY on the context provided below. 
@@ -52,7 +57,6 @@ def generate_answer(question, context):
     print("Asking Groq (Llama 3) for an answer...")
     
     # 4. Generate the Response using Groq
-    # We use 'llama3-8b-8192' which is fast and free
     chat_completion = client.chat.completions.create(
         messages=[
             {
